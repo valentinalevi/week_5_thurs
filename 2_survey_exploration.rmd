@@ -1,0 +1,155 @@
+---
+title: "DRY coding"
+author: "Data Science in Biomedicine - Week 5"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+## Introduction
+
+We'll be using an in-built data set from the MASS package. But, because the MASS package can be a bit problematic to install, I've provided the data for you. It's in .rds format, so we load it in using the `read_rds()` function.
+
+For more info about the dataset, head to https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/survey.html
+
+```{r}
+library(tidyverse)
+library(knitr)
+
+survey <- read_rds("./data/survey.rds")
+```
+
+## Exercise 1
+Explore the data - what variables are in there, what variable types, how many variables and observations?
+```{r}
+str(survey)
+```
+
+
+## Exercise 2
+Round every numeric variable to 0 decimal places.
+
+```{r}
+survey_numeric_rounded <- survey %>%
+  mutate(across(where(is.numeric), round, 0)) %>%
+  drop_na()
+
+
+```
+
+
+## Exercise 3
+Using the rounded dataframe you created in Exercise 2, calculate the mean of each numeric variable in the dataset. Use kable() to insert a nicely formatted table into your R Markdown document.
+
+```{r}
+numeric_means <- survey_numeric_rounded %>%
+  summarise(across(where(is.numeric), mean))
+
+kable(numeric_means)
+
+```
+
+
+## Exercise 4
+Now make exactly the same table, using the pivot functions. Again, use kable() to insert a nicely formatted table into your R Markdown document.
+```{r}
+numeric_means_tidy <- numeric_means %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Mean")
+
+kable(numeric_means_tidy)
+
+```
+
+## Exercise 5
+Students had initially expressed their height in either imperial or metric units, but someone converted everything into centimeters. Create a new variable, Height_original, which will show height in centimeters for students who expressed their height in metric units, and height in inches for students who prefer imperial units. 
+
+NOTE: This one is a bit of a challenge. You may want to check out the `case_when()` function.
+
+```{r}
+survey_numeric_heights <- survey_numeric_rounded %>%
+  select(Height, M.I) %>%
+  mutate(
+    Height_original = case_when(
+      M.I == "Imperial" ~ Height / 2.54, M.I == "Metric" ~ Height
+    )
+    )
+```
+
+
+## Exercise 6
+Create a table that shows the mean and standard deviation of height - in centimeters for students who used metric units, and in inches for students who used imperial units. Use kable() to insert a nicely formatted table into your R Markdown document.
+
+```{r}
+height_summary <- survey_numeric_heights %>%
+  filter(!is.na(Height), !is.na(M.I)) %>%
+  group_by(M.I) %>%
+  summarise(
+    Mean_Height = mean(Height_original),
+    SD_Height = sd(Height_original)
+  )
+
+kable(height_summary, col.names = c("Measurement Units", "Mean Height", "Standard Deviation"))
+```
+
+
+## Exercise 7
+Create a contingency table to see the relationship between exercise and smoking. Pivot your table to make it easier to read, and then use kable() to insert a nicely formatted table into your R Markdown document.
+
+```{r}
+contingency_table <- survey_numeric_rounded %>%
+  group_by(Smoke, Exer) %>%
+  tally()
+  pivot_wider(
+    names_from = Smoke,
+    values_from = n
+  )
+  
+kable(contingency_table, 
+      col.names = c("Smoker Status", "Exercise", "Count"),
+      caption = "Relationship between Exercise and Smoking")
+```
+
+
+## Exercise 8
+Create a grid of Pulse histograms - one histogram for each combination of Sex and Exercise.
+
+```{r}
+contingency_table_sex <- survey_numeric_rounded %>%
+  group_by(Sex, Exer, Pulse) %>%
+  tally()
+  pivot_wider(
+    names_from = Sex,
+    values_from = n
+  )
+  
+ggplot(contingency_table_sex, aes(x = Pulse)) +
+  geom_histogram(binwidth = 5, fill = "skyblue", color = "black") +
+  facet_grid(Sex ~ Exer) +
+  labs(title = "Histograms of Pulse by Sex and Exercise",
+       x = "Pulse",
+       y = "Count") +
+  theme_minimal()
+
+```
+
+
+## Exercise 9
+Create a new variable, Hnd.diff, that shows the difference in span between the writing and non-writing hand. Create a set of boxplots of this variable, with a separate boxplot for those who write with their right hand, and another one for those who write with their left hand.
+
+```{r}
+survey_hand_diff <- survey_numeric_rounded %>% 
+  select(Wr.Hnd,NW.Hnd,W.Hnd) %>%
+  mutate(Hnd.diff = Wr.Hnd - NW.Hnd)
+
+ggplot(survey_hand_diff, aes(x= W.Hnd, y=Hnd.diff)) +
+  geom_boxplot() +
+  labs(title = "Boxplots of Difference in span between the writing and non-writing hand ",
+       x = "Dominant Hand",
+       y = "Hand span difference") +
+  theme_minimal()
+
+
+```
+
